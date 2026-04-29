@@ -26,33 +26,6 @@ function isDayTime(t) {
   return t >= 0 && t < NIGHT_START_TICK;
 }
 
-// Advance forward to next DAWN (tick 0)
-function ticksUntilNextDawn(timeOfDay) {
-  let toDawn = (DAY_TICKS - (timeOfDay % DAY_TICKS)) % DAY_TICKS;
-  if (toDawn === 0) toDawn = DAY_TICKS; // ensure forward progress to *next* dawn
-  return toDawn;
-}
-
-function safeRunAsDimension(cmd) {
-  try {
-    overworld.runCommand(cmd);
-    return true;
-  } catch (e) {
-    debugLog(`[TimeManager] Dimension command failed: "${cmd}" (${e})`);
-    return false;
-  }
-}
-
-function safeRunAsPlayer(player, cmd) {
-  try {
-    player.runCommand(cmd);
-    return true;
-  } catch (e) {
-    debugLog(`[TimeManager] Player command failed: "${cmd}" (${e})`);
-    return false;
-  }
-}
-
 // === STATE ===
 let dayAccumulator = 0;
 let sleepCooldown = 0;
@@ -190,21 +163,25 @@ system.runInterval(() => {
       sleepCommandSource = undefined;
       sleepCooldown = SLEEP_COOLDOWN_TICKS;
       lostThresholdTicks = 0;
-      // Continue into time engine
     } else {
-      const tNow = world.getTimeOfDay();
-      const toDawn = ticksUntilNextDawn(tNow);
+      const currentAbsolute = world.getAbsoluteTime();
+      const nextDawnAbsolute = Math.ceil(currentAbsolute / DAY_TICKS) * DAY_TICKS;
+      
+      debugLog(`[TimeManager] Sleep complete. Advancing ${nextDawnAbsolute - currentAbsolute} ticks to DAWN (tick 0).`);
 
-      debugLog(`[TimeManager] Sleep complete. Advancing ${toDawn} ticks to DAWN (tick 0).`);
-
-      // Use player context if possible, fall back to dimension
-      if (sleepCommandSource) safeRunAsPlayer(sleepCommandSource, `time add ${toDawn}`);
-      else safeRunAsDimension(`time add ${toDawn}`);
+      world.setAbsoluteTime(nextDawnAbsolute);
 
       // Vanilla-like: ALWAYS clear weather after sleep (1-tick delayed).
       system.runTimeout(() => {
-        if (sleepCommandSource) safeRunAsPlayer(sleepCommandSource, "weather clear");
-        else safeRunAsDimension("weather clear");
+        try {
+          if (sleepCommandSource && sleepCommandSource.isValid()) {
+            sleepCommandSource.runCommand("weather clear");
+          } else {
+            overworld.runCommand("weather clear");
+          }
+        } catch (e) {
+          debugLog(`[TimeManager] Weather clear failed: ${e}`);
+        }
       }, 1);
 
       // Reset internal state
