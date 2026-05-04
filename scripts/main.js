@@ -1,7 +1,7 @@
 import { world, system } from "@minecraft/server";
 
 // === CUSTOM SETTINGS ===
-const DAY_MULTIPLIER = 2;              // higher = longer day (slower time progression)
+const DAY_MULTIPLIER = 3;             // higher = longer day (slower time progression)
 const ENABLE_AUTO_ENFORCER = true;     // keep vanilla doDayLightCycle off
 const DEBUG_MODE = false;
 
